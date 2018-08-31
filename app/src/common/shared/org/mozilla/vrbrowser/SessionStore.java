@@ -69,6 +69,7 @@ public class SessionStore implements GeckoSession.NavigationDelegate, GeckoSessi
     private String mRegion;
     private String mLastUri;
     private Context mContext;
+    private History mHistory;
 
     private SessionStore() {
         mNavigationListeners = new LinkedList<>();
@@ -82,12 +83,15 @@ public class SessionStore implements GeckoSession.NavigationDelegate, GeckoSessi
         mPrivateSessionsStack = new ArrayDeque<>();
     }
 
-    public void clearListeners() {
+    public void onDestroy() {
         mNavigationListeners.clear();
         mProgressListeners.clear();
         mContentListeners.clear();
         mSessionChangeListeners.clear();
         mTextInputListeners.clear();
+        if (mHistory != null) {
+            mHistory.release();
+        }
     }
 
     public static final String LOCAL_URI = "data:";
@@ -151,6 +155,12 @@ public class SessionStore implements GeckoSession.NavigationDelegate, GeckoSessi
 
         } else {
             mRuntime.attachTo(aContext);
+        }
+
+        if (mHistory == null) {
+            mHistory = new History(aContext);
+        } else {
+            mHistory.updateContext(aContext);
         }
 
         mContext = aContext;
@@ -370,6 +380,19 @@ public class SessionStore implements GeckoSession.NavigationDelegate, GeckoSessi
         return "";
     }
 
+    public String getTitleFromSession(GeckoSession aSession) {
+        Integer sessionId = getSessionId(aSession);
+        if (sessionId == null) {
+            return "";
+        }
+        State state = mSessions.get(sessionId);
+        if (state != null) {
+            return state.mTitle;
+        }
+
+        return "";
+    }
+
     public List<Integer> getSessions() {
         return new ArrayList<>(mSessions.keySet());
     }
@@ -428,6 +451,9 @@ public class SessionStore implements GeckoSession.NavigationDelegate, GeckoSessi
         String result = SessionStore.HOME_WITHOUT_REGION_ORIGIN;
         if (mRegion != null) {
             result = SessionStore.HOME_WITHOUT_REGION_ORIGIN + "?region=" + mRegion;
+        }
+        if (mHistory != null) {
+            result += "#history=" + mHistory.encodedJSON();
         }
         return result;
     }
