@@ -6,19 +6,15 @@
 package org.mozilla.vrbrowser.ui;
 
 import android.content.Context;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.Surface;
-import android.util.Log;
 import android.view.View;
-import android.view.animation.Animation;
-import android.view.animation.AnimationUtils;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
-
 import org.mozilla.gecko.gfx.GeckoDisplay;
 import org.mozilla.geckoview.GeckoSession;
 import org.mozilla.geckoview.GeckoSessionSettings;
@@ -35,7 +31,6 @@ public class BrowserWidget extends View implements Widget, SessionStore.SessionC
     private int mHandle;
     private WidgetPlacement mWidgetPlacement;
     private WidgetManagerDelegate mWidgetManager;
-    private PointF mLastWorldSize;
 
     public BrowserWidget(Context aContext, int aSessionId) {
         super(aContext);
@@ -50,6 +45,9 @@ public class BrowserWidget extends View implements Widget, SessionStore.SessionC
         mHandle = ((WidgetManagerDelegate)aContext).newWidgetHandle();
         mWidgetPlacement = new WidgetPlacement(aContext);
         initializeWidgetPlacement(mWidgetPlacement);
+
+        handleResizeEvent(SettingsStore.getInstance(getContext()).getBrowserWorldWidth(),
+                SettingsStore.getInstance(getContext()).getBrowserWorldHeight());
     }
 
     private void initializeWidgetPlacement(WidgetPlacement aPlacement) {
@@ -62,7 +60,7 @@ public class BrowserWidget extends View implements Widget, SessionStore.SessionC
         aPlacement.translationY = WidgetPlacement.unitFromMeters(context, R.dimen.browser_world_y);
         aPlacement.translationZ = WidgetPlacement.unitFromMeters(context, R.dimen.browser_world_z);
         aPlacement.anchorX = 0.5f;
-        aPlacement.anchorY = 0.5f;
+        aPlacement.anchorY = 0.0f;
     }
 
     public void pauseCompositor() {
@@ -82,6 +80,18 @@ public class BrowserWidget extends View implements Widget, SessionStore.SessionC
         }
 
         mDisplay.surfaceChanged(mSurface, mWidth, mHeight);
+    }
+
+    public void setBrowserSize(float windowWidth, float windowHeight, float multiplier) {
+        float worldWidth = WidgetPlacement.floatDimension(getContext(), R.dimen.browser_world_width);
+        float aspect = windowWidth / windowHeight;
+        float worldHeight = worldWidth / aspect;
+        float area = worldWidth * worldHeight * multiplier;
+
+        float targetWidth = (float) Math.sqrt(area * aspect);
+        float targetHeight = (float) Math.sqrt(area / aspect);
+
+        handleResizeEvent(targetWidth, targetHeight);
     }
 
     @Override
@@ -138,8 +148,8 @@ public class BrowserWidget extends View implements Widget, SessionStore.SessionC
 
     @Override
     public void handleResizeEvent(float aWorldWidth, float aWorldHeight) {
-        int defaultWidth = WidgetPlacement.pixelDimension(getContext(), R.dimen.browser_width_pixels);
-        int defaultHeight = WidgetPlacement.pixelDimension(getContext(), R.dimen.browser_height_pixels);
+        int defaultWidth = SettingsStore.getInstance(getContext()).getWindowWidth();
+        int defaultHeight = SettingsStore.getInstance(getContext()).getWindowHeight();
         float defaultAspect = (float) defaultWidth / (float) defaultHeight;
         float worldAspect = aWorldWidth / aWorldHeight;
 
@@ -153,7 +163,8 @@ public class BrowserWidget extends View implements Widget, SessionStore.SessionC
         mWidgetPlacement.worldWidth = aWorldWidth;
         mWidgetManager.updateWidget(this);
 
-        mLastWorldSize = new PointF(aWorldWidth, aWorldHeight);
+        SettingsStore.getInstance(getContext()).setBrowserWorldWidth(aWorldWidth);
+        SettingsStore.getInstance(getContext()).setBrowserWorldHeight(aWorldHeight);
     }
 
     @Override
@@ -301,7 +312,4 @@ public class BrowserWidget extends View implements Widget, SessionStore.SessionC
         // TODO: Fade in/out the browser window. Waiting for https://github.com/MozillaReality/FirefoxReality/issues/77
     }
 
-    protected  PointF getLastWorldSize() {
-        return mLastWorldSize;
-    }
 }
